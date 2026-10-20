@@ -1,0 +1,22 @@
+# 仅用于骨架启动验证，不启用任何交易转发能力。
+# 后续业务组件落地后，local 模式需为数据库与 Redis 提供 mock 实现。
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+management:
+  health:
+    redis:
+      enabled: false
+    db:
+      enabled: false
+risk:
+  system-config:
+    enabled: false
+  redis:
+    enabled: false
+  rules:
+    enabled: false
+  adapter-mode: mock

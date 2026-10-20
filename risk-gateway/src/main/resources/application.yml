@@ -1,0 +1,59 @@
+server:
+  port: ${PORT:8080}
+spring:
+  application:
+    name: risk-gateway
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/risk_gateway?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+    username: ${MYSQL_USER:risk}
+    password: ${MYSQL_PASSWORD:risk_local_only}
+    hikari:
+      maximum-pool-size: 12
+      connection-timeout: 1000
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: 200ms
+      timeout: 2ms
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: never
+risk:
+  system-config:
+    enabled: true
+    refresh-ms: 30000
+  redis:
+    enabled: true
+  features:
+    max-age-ms: 5000
+  rules:
+    enabled: true
+    refresh-interval-seconds: 30
+    cache-size: 1000
+    max-active-rules: 1000
+    max-script-bytes: 32768
+    default-timeout-ms: 2
+    evaluation-budget-ms: 2
+    max-staleness-seconds: 120
+  adapter-mode: ${ADAPTER_MODE:grpc}
+  adapter-token: ${ADAPTER_TOKEN:}
+  adapter-a-target: ${ADAPTER_A_TARGET:localhost:9091}
+  adapter-b-target: ${ADAPTER_B_TARGET:localhost:9092}
+  adapter-plaintext: ${ADAPTER_PLAINTEXT:false}
+  admin-token: ${ADMIN_TOKEN:}
+  gateway-token: ${GATEWAY_TOKEN:}
+  idempotency-ttl-seconds: 86400
+  log-queue-size: 10000
+  logs:
+    max-attempts: 3
+    shutdown-ms: 5000

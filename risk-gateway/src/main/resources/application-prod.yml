@@ -1,0 +1,31 @@
+# 生产环境必须由部署平台注入凭证，不继承本地示例密码。
+spring:
+  datasource:
+    url: ${MYSQL_URL}
+    username: ${MYSQL_USER}
+    password: ${MYSQL_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      password: ${REDIS_PASSWORD}
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,redis,rules,systemConfig
+server:
+  shutdown: graceful
+spring.lifecycle.timeout-per-shutdown-phase: 20s
+risk:
+  adapter-mode: grpc
+  adapter-token: ${ADAPTER_TOKEN}
+  adapter-a-target: ${ADAPTER_A_TARGET}
+  adapter-b-target: ${ADAPTER_B_TARGET}
+  adapter-plaintext: false
+  admin-token: ${ADMIN_TOKEN}
+  gateway-token: ${GATEWAY_TOKEN}
