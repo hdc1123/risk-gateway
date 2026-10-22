@@ -43,7 +43,7 @@ public class OrderRiskService {
         try {
             try {
                 assembled = features.assemble(order);
-                evaluation = engine.evaluate(assembled);
+                evaluation = engine.evaluateOrder(assembled, order.userId()+":"+order.mt5Account());
             }
             catch (FeatureUnavailableException e) { degrade = e.getMessage(); }
             decision = evaluation.degraded() && evaluation.hits().isEmpty()

@@ -28,6 +28,12 @@ public class ExecutorConfiguration {
         return executor("groovy-admin-", 1, 2, 16);
     }
 
+    @Bean(name = "shadowExecutor")
+    public ThreadPoolTaskExecutor shadowExecutor() { return executor("risk-shadow-", 1, 2, 32); }
+
+    @Bean(name = "shadowScriptExecutor")
+    public ThreadPoolTaskExecutor shadowScriptExecutor() { return executor("groovy-shadow-", 1, 2, 32); }
+
     private ThreadPoolTaskExecutor executor(String prefix, int core, int max, int capacity) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setThreadNamePrefix(prefix);

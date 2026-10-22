@@ -28,7 +28,7 @@ class OrderRiskServiceTest {
     private void acquired() {
         when(store.claim("req", order)).thenReturn(claim);
         when(features.assemble(order)).thenReturn(Map.of());
-        when(engine.evaluate(anyMap())).thenReturn(new Evaluation(List.of(), 0.1, false));
+        when(engine.evaluateOrder(anyMap(), anyString())).thenReturn(new Evaluation(List.of(), 0.1, false));
     }
     @Test
     void successCachesActualAdapterResponse() {

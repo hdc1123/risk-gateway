@@ -55,6 +55,17 @@ public class GroovyRuleCompiler {
         String md5 = digest("MD5", rule.scriptContent());
         if (rule.scriptMd5() != null && !rule.scriptMd5().isBlank() && !md5.equalsIgnoreCase(rule.scriptMd5()))
             throw new IllegalArgumentException("script_md5 与脚本内容不一致，请同步更新 MD5");
+        if (ProcessSandbox.enabled()) {
+            try {
+                var reply=ProcessSandbox.call(new ProcessSandbox.Request(rule, java.util.Map.of(), true),
+                    Long.getLong("risk.script.compile.timeout-ms",5000));
+                if (reply.error()!=null) throw new IllegalArgumentException("沙箱编译失败");
+                // 子进程模式不在主 JVM 加载脚本类。
+                return new CompiledRule(rule,null,md5);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); throw new IllegalStateException("编译中断",e);
+            } catch (Exception e) { throw new IllegalStateException("沙箱编译失败或超时",e); }
+        }
         // MD5 仅校验数据库变更；缓存采用真实内容 SHA-256，避免错误 MD5 和摘要碰撞污染。
         String key = digest("SHA-256", rule.scriptContent());
         Class<? extends Script> clazz = cache.getIfPresent(key);
@@ -62,7 +73,7 @@ public class GroovyRuleCompiler {
             CompilerConfiguration config = new CompilerConfiguration();
             config.setDisabledGlobalASTTransformations(Set.of("groovy.grape.GrabAnnotationTransformation"));
             // 循环与方法入口注入中断检查，配合后续执行器 cancel(true)。不等于硬隔离。
-            config.addCompilationCustomizers(new ASTTransformationCustomizer(ThreadInterrupt.class));
+            config.addCompilationCustomizers(new RuleAstGuard(), new ASTTransformationCustomizer(ThreadInterrupt.class));
             try (GroovyClassLoader loader = new GroovyClassLoader(getClass().getClassLoader(), config)) {
                 clazz = loader.parseClass(rule.scriptContent(), "Rule_" + key + ".groovy").asSubclass(Script.class);
                 cache.put(key, clazz);
@@ -74,7 +85,7 @@ public class GroovyRuleCompiler {
         return new CompiledRule(rule, clazz, md5);
     }
 
-    static String digest(String algorithm, String text) {
+    public static String digest(String algorithm, String text) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance(algorithm).digest(text.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }

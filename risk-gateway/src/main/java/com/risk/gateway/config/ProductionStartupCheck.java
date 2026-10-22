@@ -31,7 +31,12 @@ public class ProductionStartupCheck implements ApplicationRunner {
         if (gateway.length()<32 || admin.length()<32 || adapter.length()<32 || gateway.equals(admin))
             throw new IllegalStateException("生产 token 至少 32 字符，网关与管理员 token 不可相同");
         JdbcTemplate template=jdbc.getObject();
-        template.queryForList("SELECT rule_id FROM risk_rule LIMIT 0");
+        template.queryForList("SELECT rule_id, script_version FROM risk_rule LIMIT 0");
+        template.queryForList("SELECT rule_id, revision FROM risk_rule_draft LIMIT 0");
+        template.queryForList("SELECT rule_id, version FROM risk_rule_release LIMIT 0");
+        template.queryForList("SELECT operation, trace_id FROM risk_rule_audit LIMIT 0");
+        template.queryForList("SELECT revision, mode FROM risk_rollout WHERE id=1");
+        template.queryForList("SELECT rule_id, revision, approver FROM risk_rule_approval LIMIT 0");
         template.queryForList("SELECT log_key, script_results, script_latency_ms FROM decision_log_template LIMIT 0");
         // 只读检查连接；Lua ACL 与持久化配置还需部署环境验证。
         redis.getObject().execute((org.springframework.data.redis.core.RedisCallback<String>) connection -> connection.ping());

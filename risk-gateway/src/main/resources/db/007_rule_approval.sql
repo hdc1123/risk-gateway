@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS risk_rule_approval (
+ rule_id VARCHAR(64) NOT NULL,
+ revision INT NOT NULL,
+ approver VARCHAR(128) NOT NULL,
+ reason VARCHAR(512) NOT NULL,
+ approved_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ PRIMARY KEY (rule_id,revision)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

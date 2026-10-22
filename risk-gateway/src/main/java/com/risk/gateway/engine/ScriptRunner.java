@@ -20,6 +20,15 @@ public class ScriptRunner {
         long timeout = Math.min(TimeUnit.MILLISECONDS.toNanos(compiled.rule().timeoutMs()), budgetNanos);
         if (timeout <= 0) return failure(compiled, start, "BUDGET_EXCEEDED");
         FutureTask<ScriptResult> task = new FutureTask<>(() -> {
+            if (compiled.scriptClass()==null) {
+                var reply=ProcessSandbox.call(new ProcessSandbox.Request(compiled.rule(),features,false),
+                    Math.max(1,TimeUnit.NANOSECONDS.toMillis(timeout)));
+                if (reply.error()!=null) return failure(compiled,start,reply.error());
+                String value=reply.value();
+                RuleResult result=value==null ? null : new RuleResult(compiled.rule().ruleId(),compiled.rule().ruleName(),
+                    compiled.rule().priority(),"ROUTE","book_type",value.equals("ROUTE_A") ? Book.A_BOOK : Book.B_BOOK);
+                return new ScriptResult(compiled.rule().ruleId(),compiled.digest(),value,result,elapsed(start),true,null);
+            }
             var script = compiled.scriptClass().getDeclaredConstructor().newInstance();
             Binding binding = new Binding();
             binding.setVariable("features", features);

@@ -24,6 +24,9 @@ public class ApiSecurityFilter extends OncePerRequestFilter {
                              @Value("${risk.admin-token:}") String adminToken) {
         this.mapper = mapper; this.gatewayToken = gatewayToken; this.adminToken = adminToken;
     }
+    private AdminIdentities identities;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    public void setIdentities(AdminIdentities identities) { this.identities=identities; }
     @Override
     protected boolean shouldNotFilterAsyncDispatch() { return true; }
     @Override
@@ -37,6 +40,17 @@ public class ApiSecurityFilter extends OncePerRequestFilter {
         String path = request.getServletPath();
         String expected = path.startsWith("/api/v1/admin/") ? adminToken
             : path.startsWith("/api/v1/risk/") ? gatewayToken : null;
+        if (path.startsWith("/api/v1/admin/") && identities!=null && identities.enabled()) {
+            var identity=identities.authenticate(request.getHeader("Authorization"));
+            if (identity==null || !AdminIdentities.permits(identity,request.getMethod(),path)) {
+                response.setStatus(identity==null ? 401 : 403); response.setContentType("application/json");
+                mapper.writeValue(response.getOutputStream(),ApiResponse.of(identity==null ? 1401 : 1403,"forbidden",trace,null));
+                return;
+            }
+            request.setAttribute(AdminIdentities.ATTRIBUTE,identity);
+            chain.doFilter(request,response);
+            return;
+        }
         if (expected != null) {
             String supplied = request.getHeader("Authorization");
             boolean valid = !expected.isBlank() && supplied != null && MessageDigest.isEqual(

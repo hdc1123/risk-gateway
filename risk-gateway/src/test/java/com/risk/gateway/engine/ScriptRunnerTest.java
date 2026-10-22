@@ -50,6 +50,24 @@ class ScriptRunnerTest {
     }
 
     @Test
+    void compiledInfiniteLoopIsCooperativelyInterruptedAndWorkerRecovers() throws Exception {
+        var compiler = new GroovyRuleCompiler(new ScriptGuard(),
+            new com.risk.gateway.config.RuleConfiguration.Properties(30,100,100,32768,100,120));
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            var loop = compiler.compile(new Rule("LOOP","循环",1,"while (true) { }; return null",null,"ROUTE",100));
+            var hit = compiler.compile(new Rule("HIT","命中",1,"return 'ROUTE_A'",null,"ROUTE",1000));
+            ScriptRunner runner = new ScriptRunner(pool);
+            assertEquals("SCRIPT_TIMEOUT", runner.execute(loop,Map.of(),TimeUnit.SECONDS.toNanos(1)).error());
+            assertEquals(Book.A_BOOK, runner.execute(hit,Map.of(),TimeUnit.SECONDS.toNanos(1)).result().value());
+        } finally {
+            compiler.close();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(3,TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
     void preservesCallerInterrupt() {
         Thread.currentThread().interrupt();
         try {

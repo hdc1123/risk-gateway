@@ -18,13 +18,13 @@ import java.util.concurrent.RejectedExecutionException;
 public class ApiExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
     @ExceptionHandler({MethodArgumentNotValidException.class, MissingRequestHeaderException.class,
-        HttpMessageNotReadableException.class, IllegalArgumentException.class})
+        HttpMessageNotReadableException.class, IllegalArgumentException.class, SecurityException.class})
     public ResponseEntity<?> invalid(Exception e, HttpServletRequest request) {
         return reply(400, 1001, "请求参数不合法", request);
     }
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<?> business(BusinessException e, HttpServletRequest request) {
-        return reply(e.code() == 1404 ? 404 : 409, e.code(), e.getMessage(), request);
+        return reply(e.code() == 1404 ? 404 : e.code() == 1403 ? 403 : e.code() == 1400 ? 400 : 409, e.code(), e.getMessage(), request);
     }
     @ExceptionHandler({IdempotencyUnavailableException.class, RejectedExecutionException.class})
     public ResponseEntity<?> unavailable(Exception e, HttpServletRequest request) {

@@ -24,6 +24,28 @@ public class GroovyRuleEngine {
         this.budgetNanos = TimeUnit.MILLISECONDS.toNanos(budgetMs);
     }
 
+    private com.risk.gateway.rule.RolloutService rollout;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    public void setRollout(com.risk.gateway.rule.RolloutService rollout) { this.rollout=rollout; }
+
+    public Evaluation evaluateOrder(Map<String,Object> features, String subject) {
+        if (rollout==null) return evaluate(features);
+        var plan=rollout.current();
+        if (!rollout.selected(plan,subject)) return evaluate(features);
+        if (plan.mode()==com.risk.gateway.rule.RolloutService.Mode.SHADOW) {
+            Evaluation baseline=evaluate(features);
+            rollout.shadow(plan,features,baseline);
+            return baseline;
+        }
+        Evaluation candidate=rollout.evaluateCandidate(plan,features);
+        // 候选异常回退基线并显式保留降级标记。
+        if (candidate.degraded()) {
+            Evaluation baseline=evaluate(features);
+            return new Evaluation(baseline.scripts(),baseline.latencyMs()+candidate.latencyMs(),true);
+        }
+        return candidate;
+    }
+
     public Evaluation evaluate(Map<String, Object> features) {
         // 每个订单只读取一次快照，避免刷新时状态与规则列表不一致。
         RuleSnapshot snapshot = loader.snapshot();
@@ -32,10 +54,15 @@ public class GroovyRuleEngine {
             return new Evaluation(List.of(new ScriptResult("__engine__", null, null, null, 0, false,
                 "RULE_SNAPSHOT_UNAVAILABLE")), elapsed(start), true);
         }
+        return evaluateRules(snapshot.rules(),runner,features,budgetNanos,snapshot.loadError()!=null);
+    }
+
+    public static Evaluation evaluateRules(List<CompiledRule> rules, ScriptRunner runner, Map<String,Object> features,
+                                           long budgetNanos, boolean degraded) {
+        long start=System.nanoTime();
         Map<String, Object> safeFeatures = immutableFeatures(features);
         List<ScriptResult> results = new ArrayList<>();
-        boolean degraded = snapshot.loadError() != null;
-        for (CompiledRule rule : snapshot.rules()) {
+        for (CompiledRule rule : rules) {
             long remaining = budgetNanos - (System.nanoTime() - start);
             if (remaining <= 0 || Thread.currentThread().isInterrupted()) {
                 results.add(new ScriptResult(rule.rule().ruleId(), rule.digest(), null, null, 0, true,

@@ -35,6 +35,54 @@
 
 返回 ScriptResult，包括 ruleId、scriptMd5、returnValue、result、latencyMs、compiled、error。编译失败时 error=COMPILE_FAILED；执行超时等由 error 指示，接口成功不意味着规则命中。MVP1 profile 仅允许 null。
 
+## 规则管理（新增）
+
+全部使用 `ADMIN_TOKEN`，请求在独立有界 `adminExecutor` 执行。部署前执行 `db/005_rule_management.sql`；已有规则会导入为草稿和历史版本，不会自动启用。
+
+| 方法 | 路径（前缀 `/api/v1/admin/rules`） | 功能 |
+|---|---|---|
+| GET | `/{id}/draft` | 读取草稿及 revision |
+| PUT | `/{id}/draft` | 创建或编辑草稿，不影响线上 |
+| POST | `/{id}/publish` | 编译验证后发布新版本 |
+| GET | `/{id}/state` | 读取当前生产 version 和启停状态（未发布为 version=0） |
+| PUT | `/{id}/state` | 启停已发布规则 |
+| POST | `/{id}/rollback` | 从历史内容生成新版本，保留启停状态 |
+| GET | `/{id}/versions?limit=20` | 最近版本元数据，limit 1~100 |
+| GET | `/{id}/audit?limit=20` | 最近操作审计，limit 1~100 |
+
+创建草稿（首次 expectedRevision=0；编辑时传读取到的 revision）：
+
+```json
+{"expectedRevision":0,"ruleName":"大额订单","priority":100,"scriptContent":"if (features.volume >= 10) return 'ROUTE_A'; return null","timeoutMs":0,"reason":"创建规则"}
+```
+
+发布：
+
+```json
+{"expectedRevision":1,"expectedVersion":0,"reason":"验证后发布"}
+```
+
+首次发布返回 `{"version":1,"enabled":false}`，再启用：
+
+```json
+{"expectedVersion":1,"enabled":true,"reason":"启用规则"}
+```
+
+启停也推进版本（上述返回 version=2），避免旧启停请求覆盖新状态。后续发布须带当前生产版本与草稿 revision。回滚请求：
+
+```json
+{"expectedVersion":2,"targetVersion":1,"reason":"恢复历史脚本"}
+```
+
+- 同规则操作通过数据库行锁串行化，期望版本不匹配返回 1409 / HTTP 409。
+- 发布、回滚和启用必须通过编译检查；失败返回 1400 / HTTP 400，事务不改变生产规则及历史。
+- 草稿可以暂存语法不完整的脚本，但仍执行大小和基础安全检查。
+- 规则、不可变历史和审计写入同一事务。审计 actor 固定为 `admin-token`，表示通过管理员凭证认证；当前共享 token 不能区分真实操作人，不信任客户端自报姓名。需要个人审计应对接独立身份认证。
+- 发布后通过原有轮询刷新生效，不在数据库事务内刷新本机缓存；多实例在各自下一次轮询生效，不是集群原子切换。
+- 回滚不覆盖草稿，下一次发布前应确认草稿内容。版本历史返回元数据，脚本恢复通过回滚完成。
+- 当前不提供物理删除、审批或灰度发布；停用代替删除，避免破坏历史。
+- 生产规则请仅通过管理 API 更新；直接 SQL 绕过行锁/版本/审计协议不受并发保护。
+
 ## 错误码
 
 | code | 含义 |
@@ -44,7 +92,9 @@
 | 1002 | 幂等重复、处理中或结果不确定；message 区分状态 |
 | 1003 | 请求内容/请求ID冲突 |
 | 1401 | 无访问权限，HTTP 401 |
-| 1404 | 规则不存在，HTTP 404 |
+| 1400 | 规则编译或安全校验失败，HTTP 400 |
+| 1404 | 规则或版本不存在，HTTP 404 |
+| 1409 | 草稿或生产版本冲突，HTTP 409 |
 | 1500 | 内部错误 |
 | 1503 | 线程池过载或幂等设施不可用，HTTP 503 |
 | 1504 | Adapter 或幂等写入结果不确定 |

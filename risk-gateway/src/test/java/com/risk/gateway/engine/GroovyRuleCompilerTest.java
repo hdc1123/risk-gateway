@@ -42,6 +42,13 @@ class GroovyRuleCompilerTest {
     }
 
     @Test
+    void blocksDynamicMembersAndObjectConstructionAtAstLevel() {
+        assertThrows(RuntimeException.class, () -> compiler.compile(rule("def m = 'get' + 'Class'; this.\"$m\"()", null)));
+        assertThrows(RuntimeException.class, () -> compiler.compile(rule("new Object(); return null", null)));
+        assertThrows(RuntimeException.class, () -> compiler.compile(rule("def p = 'cla' + 'ss'; features.\"$p\"", null)));
+    }
+
+    @Test
     void zeroTimeoutInheritsDefaultAndExplicitValueWins() {
         assertEquals(2, compiler.compile(new Rule("INHERIT", "测试", 1, "return null", null, "ROUTE", 0)).rule().timeoutMs());
         assertEquals(10, compiler.compile(new Rule("EXPLICIT", "测试", 1, "return null", null, "ROUTE", 10)).rule().timeoutMs());
